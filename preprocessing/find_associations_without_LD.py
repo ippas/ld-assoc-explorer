@@ -2,7 +2,7 @@ import json
 import pandas as pd
 import requests
 
-snp_table = pd.read_csv('data/snp/nearest_with_rare_march.csv')
+snp_table = pd.read_csv('../data/snp/nearest_with_rare_march.csv')
 
 rsids = snp_table['rsID']
 
