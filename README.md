@@ -1,4 +1,4 @@
-# Project title (institute-name-subject)
+# Project title (ifpan-paula-ukbbldmatrixes)
 
 This project searches associations for a list of snps taking into account associations with nearby SNPs with high LD.  
 
