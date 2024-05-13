@@ -1,15 +1,16 @@
 # Project title (institute-name-subject)
 
-## Methods
-The preprocessing of raw SNP 
+This project searches associations for a list of snps taking into account associations with nearby SNPs with high LD.  
 
 ## Preprocessing
 Preprocessing of raw data includes grouping snp identifiers by chromosome.
 
-## Analysis
-After preprocessing, we used the UK Biobank Linkage Disequilibrium Matrices available from DATE at https://registry.opendata.aws/ukbb-ld.Details. Using this matrixes we find SNP with high LD (> 0.75) for our list of SNP. The next step was to search for associations for our associated SNPs. To do this, I used the summary statistics api from https://www.ebi.ac.uk/gwas/home. I filtered my data for p-value <= 0.05.
+## Methods
+This sections should be a description of preprocessin and analysis ready to be included in the publication
 
-*notes: all files included in the repo need to be referenced, either in README or other .md files. The analysis has to be fully reproducible, in principle the repo should contain code + description of how to run it while data and results kept outside*
+## Analysis
+After preprocessing, we used the UK Biobank Linkage Disequilibrium Matrices available from DATE at https://registry.opendata.aws/ukbb-ld.Details. Using this matrixes we find SNP with high LD (> 0.75) for our list of SNP. The next step was to search for associations for list of associated SNPs. For this purpose, the summary statistics API from [EBI GWAS Catalog](https://www.ebi.ac.uk/gwas/home) was utilized. Data was filtered for a p-value <= 0.05.
+To repeat analysis you need your list of snps of interest and folder with LD matrixes from UK BioBank (you need to update filepaths to this data in run-analyse.sh file). To start the analysis, run the run-analyse.sh file.
 
 ## About this template
 Directories:

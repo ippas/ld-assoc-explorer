@@ -1,46 +1,43 @@
 #!/bin/bash
 
+#in snps_data_file_path are filepath to our raw dataset
+snps_data_file_path="../raw/nearest_with_rare_march.csv"
+echo "Raw data path: $snps_data_file_path"
+
+#in ld_matrixes_folder_path are path for folder with LD-matrixes from UK biobank
+ld_matrixes_folder_path="/mnt/droplet"
+echo "LD matrix folder path: $ld_matrices_folder_path"
+
 run_script() {
-    script_name="$1"
-    if [ "$script_name" == "find-files-and-find-snps.py" ]; then
-        ld_matrix_path="$2"  
-        echo "Running script: $script_name with LD matrix path: $ld_matrix_path"
-        python "$script_name" "$ld_matrix_path"
-    else
-        echo "Running script: $script_name"
-        python "$script_name"
-    fi
-    return $?
-}
-
-script1="group-rsids-by-chromosome.py"
-
-#in ld_matrices_folder_path are path for folder with LD-matrixes from UK biobank
-script2="find-files-and-find-snps.py"
-ld_matrixes_folder_path = "/mnt/droplet"
-
-script3="name-associations.py"
-
-script4="format-result.py"
-
-script5="delete-duplicates.py"
-
-scripts=("$script1" "$script2" "$script3" "$script4" "$script5")
-
-for script in "${scripts[@]}"; do
-    while true; do
-        if [ "$script" == "$script2" ]; then
-            run_script "$script" "$ld_matrixes_folder_path"
-        else
-            run_script "$script"
-        fi
+    script=$1
+    shift 1
+    echo "Running script: $script"
+    sleep 5
+    success=false
+    while ! $success; do 
+        python "$script" "$@"
         exit_code=$?
         if [ $exit_code -eq 0 ]; then
-            break
+            success=true
         else
             echo "Error: Script $script did not finish successfully. Retrying..."
         fi
     done
-done
+}
+
+script1="../preprocessing/group-rsids-by-chromosome.py"
+run_script "$script1" "$snps_data_file_path"
+
+script2="find-files-and-find-snps.py"
+run_script "$script2" "$ld_matrixes_folder_path"
+
+script3="name-associations.py"
+run_script "$script3" 
+
+script4="format-result.py"
+run_script "$script4" 
+
+script5="delete-duplicates.py"
+run_script "$script5"
 
 echo "All scripts have been successfully executed."
