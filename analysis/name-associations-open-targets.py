@@ -42,9 +42,9 @@ def process_files_in_directory(source_directory, answer_file):
     f.close()
 
 folder_rsids = '../data/snp-results-june.csv'
-directory = '../data/snp/associations'
-result = '../results/traits.csv'
-no_results = '../results/no-traits.csv'
+directory = '../data/snp/associations-open-targets'
+result = '../results/traits-open-targets.csv'
+no_results = '../results/no-traits-open-targets.csv'
 
 rsid1 = pd.read_csv(folder_rsids)['rsID']
 

@@ -34,26 +34,29 @@ def load_ld_npz(ld_prefix):
 folder_ukbb = sys.argv[1]
 chrom = int(sys.argv[2])
 rsid_list = sys.argv[3].split(',')                                      
-
-min_ld = 75
+min_ld = int(sys.argv[4])
 
 my_df_R, df_ld_snps = load_ld_npz(folder_ukbb)                                                              
 
 print(f"matrix {os.path.dirname(folder_ukbb)} loaded")
 print()
 
-snps = df_ld_snps[df_ld_snps['SNP'].isin(rsid_list)]                    
+snps = df_ld_snps[df_ld_snps['SNP'].isin(rsid_list)]   
+print(snps)
+print()
 snps = pd.DataFrame({'snp' : snps.index.tolist(), 'rsid' : snps['SNP'].tolist()})                                                               
- 
+print(snps)
+
 high_ld_snps = []                  
 for snp in snps['snp']:                 
-    df_filtr = my_df_R.loc[snp, my_df_R.loc[snp] > (min_ld/100)]                    
+    df_filtr = my_df_R.loc[snp, my_df_R.loc[snp] > (min_ld/100)]
     high_ld_snps.append(pd.DataFrame(df_filtr).T)
  
 for df, rsid in zip(high_ld_snps, snps['rsid']):                            
     snp_list = df.columns.tolist()
     final_list = df_ld_snps[df_ld_snps.index.isin(snp_list)]
     print(f"snps list for {rsid} found")
+    os.makedirs(f"../data/snp/highest-ld-{min_ld}/chrom-{chrom}", exist_ok=True)
     df.to_csv(f"../data/snp/highest-ld-{min_ld}/chrom-{chrom}/{rsid}-matrix.csv")
     final_list.to_csv(f"../data/snp/highest-ld-{min_ld}/chrom-{chrom}/{rsid}.csv", index=False)
 
