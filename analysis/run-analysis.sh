@@ -1,4 +1,7 @@
 #!/bin/bash
+#
+# This program searches associations for a list of snps taking into account associations with nearby SNPs with high LD. 
+
 scr_dir=$(dirname "$0")
 scr_name=$(basename "$0")
 cd $scr_dir
@@ -34,6 +37,10 @@ results_info() {
     echo -e "\n$scr_name: All scripts finished successfully. The output was saved to ../results  "
 }
 
+error_message() {
+    echo "$scr_name: $1" >&2
+}
+
 set_ld_value() {
     if [[ ! "$1" =~ ^((0(\.[0-9]+)?)|1)$ ]]; then
         echo "$scr_name: --ld-value '$1' has to be float in range 0 to 1"
@@ -45,7 +52,7 @@ set_ld_value() {
 
 set_p_value() {
     if [[ ! "$1" =~ ^((0(\.[0-9]+)?)|1)$ ]]; then
-        echo "$scr_name: --p-value '$1' has to be float in range 0 to 1"
+        error_message "$--p-value '$1' has to be float in range 0 to 1"
         exit 1
     fi
 
@@ -54,12 +61,12 @@ set_p_value() {
 
 set_snps_file_path() {
     if [ -z "$1" ]; then
-        echo "$scr_name: Missing SNPS file name"
+        error_message "Missing SNPS file name"
         exit 1
     fi
 
     if [[ ! (-f "$1" && "$1" =~ .csv$) ]]; then
-        echo "$1: $scr_name: No such SNPS file or it isn't in .csv extension"
+        error_message "$1: No such SNPS file or it isn't in .csv extension"
         exit 1
     fi
 
@@ -68,12 +75,12 @@ set_snps_file_path() {
 
 set_ld_matrixes_directory() {
     if [ -z "$1" ]; then
-        echo "$scr_name: Missing ld matrixes directory name"
+        error_message "Missing ld matrixes directory name"
         exit 1
     fi
 
     if [[ ! -d "$1" ]]; then
-        echo "$scr_name: $1: The provided ld matrixes directory doesn't exist"
+        error_message "$1: The provided ld matrixes directory doesn't exist"
         exit 1
     fi
 
@@ -84,18 +91,20 @@ run_command() {
     max_tries=5
 
     for try in $(seq $max_tries); do
-        echo "$scr_name: Running command: '$@' ($try/$max_tries)"
+        command="$@"
 
-        $@
+        echo "$scr_name: Running command: '$command' ($try/$max_tries)"
+
+        $( $command )
         exit_code=$?
 
         if [[ $exit_code -ne 0 && $try -ne $max_tries ]]; then
-            echo "$scr_name: command: '$@' failed and exited with code '$exit_code'"
+            error_message "command: '$command' failed and exited with code '$exit_code'"
             continue
         fi
 
-        if [ $try -eq $max_tries ]; then
-            echo "$scr_name: command: '$@' maximum tries reached. Exiting program..."
+        if [[ $exit_code -ne 0 && $try -eq $max_tries ]]; then
+            error_message "command: '$command': maximum tries reached. Exiting program..."
             exit 1
         fi
 
@@ -122,7 +131,7 @@ while true; do
         set_p_value $1
         ;;
         -* )
-        echo "$scr_name: invalid option '$1'"
+        error_message "invalid option '$1'"
         exit 1
         ;;
         * )
@@ -139,7 +148,7 @@ settings_info
 
 # uruchamiam tutaj dwa testowe pliki które jedyne co robią to zwracają error kody
 run_command python3 exit_code_test_random.py
-run_command python3 exit_code_test2.py 0
+run_command python3 exit_code_test.py 0
 
 results_info
 
