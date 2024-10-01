@@ -88,14 +88,14 @@ set_ld_matrixes_directory() {
 }
 
 run_command() {
-    max_tries=5
+    max_tries=1
 
     for try in $(seq $max_tries); do
         command="$@"
 
         echo "$scr_name: Running command: '$command' ($try/$max_tries)"
 
-        $( $command )
+        $command
         exit_code=$?
 
         if [[ $exit_code -ne 0 && $try -ne $max_tries ]]; then
@@ -146,9 +146,7 @@ set_ld_matrixes_directory $2
 
 settings_info
 
-# uruchamiam tutaj dwa testowe pliki które jedyne co robią to zwracają error kody
-run_command python3 exit_code_test_random.py
-run_command python3 exit_code_test.py 0
+run_command python3 ../preprocessing/snps-to-ld-matrixes-format.py $snps_file_path $ld_matrixes_directory "../data/snps-ld-matrixes-format.json"
 
 results_info
 
