@@ -146,7 +146,8 @@ set_ld_matrixes_directory $2
 
 settings_info
 
-run_command python3 ../preprocessing/snps-to-ld-matrixes-format.py $snps_file_path $ld_matrixes_directory "../data/snps-ld-matrixes-format.json"
+run_command python3 ../preprocessing/group-snps-by-chr-and-bp.py $snps_file_path $ld_matrixes_directory
+run_command python3 find-linked-snps-by-ld-matrixes.py $ld_matrixes_directory $ld_value
 
 results_info
 
