@@ -5,14 +5,15 @@ import json
 
 snps_file_path = sys.argv[1]
 ld_matrixes_directory = sys.argv[2]
-results_file = sys.argv[3]
+
+results_file_path = '../data/rsids-grouped-by-ld-prefixes.json'
 
 snps_file_name = snps_file_path.split('/')[-1]
 ld_files = os.listdir(ld_matrixes_directory)
 
 ld_prefixes = []
 snps_list = []
-snps_ld_matrixes_format = []
+rsids_grouped_by_ld_prefixes= []
 
 def error(message):
     script_name = sys.argv[0].split('/')[-1]
@@ -81,7 +82,7 @@ def ld_prefixes_by_chr_and_bp(chr, bp):
 
     return founded_ld_prefixes
 
-def add_snps_ld_matrixes_format_object(ld_prefix, snp):
+def add_snp_grouped_by_ld_prefix(ld_prefix, snp):
     new_object = {
         'ld_prefix': ld_prefix,
         'rs_ids': [
@@ -89,22 +90,25 @@ def add_snps_ld_matrixes_format_object(ld_prefix, snp):
         ]
     }
 
-    if len(snps_ld_matrixes_format) == 0:
-        snps_ld_matrixes_format.append(new_object)
+    if len(rsids_grouped_by_ld_prefixes) == 0:
+        rsids_grouped_by_ld_prefixes.append(new_object)
         return
 
-    for object in snps_ld_matrixes_format:
-        if object['ld_prefix'] == ld_prefix:
-            object['rs_ids'].append(snp)
-        else:
-            snps_ld_matrixes_format.append(new_object)
+    for object in rsids_grouped_by_ld_prefixes:
+        if object['ld_prefix'] != ld_prefix:
+            continue
+
+        object['rs_ids'].append(snp)
         return
+
+    rsids_grouped_by_ld_prefixes.append(new_object)
 
 ld_files_to_ld_prefixes()
 read_snps_csv_and_write_data_to_snps_list()
+
 for snp in snps_list:
     for ld_prefix in ld_prefixes_by_chr_and_bp(snp['chr'], snp['bp']):
-        add_snps_ld_matrixes_format_object(ld_prefix, snp['rs_id'])
+        add_snp_grouped_by_ld_prefix(ld_prefix, snp['rs_id'])
 
-with open(results_file, 'w') as file:
-    file.write(json.dumps(snps_ld_matrixes_format))
+with open(results_file_path, 'w') as file:
+    file.write(json.dumps(rsids_grouped_by_ld_prefixes, indent=4))
