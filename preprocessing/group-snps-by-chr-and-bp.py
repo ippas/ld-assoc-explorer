@@ -35,12 +35,12 @@ def read_snps_csv_and_write_data_to_snps_list():
 
     csv_header = next(csv_reader)
     csv_header_formated = [value.strip() for value in csv_header]
-    needed_columns = ['RSID', 'CHR', 'BP']
+    needed_columns = ['RS_ID', 'CHR', 'BP']
 
     if not all(column in csv_header_formated for column in needed_columns):
         error(f'{snps_file_name}: must contain header with following columns: {needed_columns}')
 
-    rs_id_index = csv_header_formated.index('RSID')
+    rs_id_index = csv_header_formated.index('RS_ID')
     chr_index = csv_header_formated.index('CHR')
     bp_index = csv_header_formated.index('BP')
 
