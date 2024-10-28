@@ -7,7 +7,7 @@ import scipy.sparse as scipy_sparse
 ld_matrixes_directory = sys.argv[1]
 ld_value = float(sys.argv[2])
 
-results_file_path = '../data/linked_snps.csv'
+results_file_path = '../data/snps-found-via-ld-matrixes.csv'
 
 grouped_rsids_file_path = '../data/rsids-grouped-by-ld-prefixes.json'
 rsids_grouped_by_ld_prefixes = []
@@ -35,6 +35,8 @@ def load_ld_matrix_by_ld_prefix(ld_prefix):
 
     return ld_matrix
 
+linked_snps_global = []
+
 def find_linked_snps_by_ld_prefix_and_rsid_list(ld_prefix, rsid_list):
     ld_matrix = load_ld_matrix_by_ld_prefix(ld_prefix)
     linked_snps = []
@@ -49,30 +51,32 @@ def find_linked_snps_by_ld_prefix_and_rsid_list(ld_prefix, rsid_list):
 
             rs_id = row_name.split('.')[0]
 
-            if rs_id == column_name:
-                continue
-
             if not rs_id.startswith('rs'):
                 continue
 
             chr = int(ld_prefix.replace('chr', '').split('_')[0])
             bp = int(row_name.split('.')[1])
 
+            if any([
+                rs_id in snp_object.values()
+                for snp_object in linked_snps_global
+                ]):
+                continue
+
             linked_snps.append({
                 'RS_ID': rs_id,
                 'CHR': chr,
                 'BP': bp,
-                'BASE_SNP': column_name
+                'BASE_SNP': column_name,
+                'LD_VALUE': float(value)
             })
     return linked_snps
-
-linked_snps = []
 
 for rsids_group in rsids_grouped_by_ld_prefixes:
     ld_prefix = rsids_group['ld_prefix']
     rsids = rsids_group['rs_ids']
 
-    linked_snps += find_linked_snps_by_ld_prefix_and_rsid_list(ld_prefix, rsids)
+    linked_snps_global += find_linked_snps_by_ld_prefix_and_rsid_list(ld_prefix, rsids)
 
-dataframe = pandas.DataFrame(linked_snps)
+dataframe = pandas.DataFrame(linked_snps_global)
 dataframe.to_csv(results_file_path, index=False)
