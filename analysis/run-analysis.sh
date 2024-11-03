@@ -146,8 +146,11 @@ set_ld_matrixes_directory $2
 
 settings_info
 
+run_command find ../data -regextype egrep -regex '.*(\.csv|\.json)' -delete
+
 run_command python3 ../preprocessing/group-snps-by-chr-and-bp.py $snps_file_path $ld_matrixes_directory
 run_command python3 find-linked-snps-by-ld-matrixes.py $ld_matrixes_directory $ld_value
+run_command python3 find-associations-using-gwas-catalog.py $p_value
 
 results_info
 
@@ -155,3 +158,6 @@ results_info
 
 cd - >/dev/null
 exit 0
+
+# TODO: Adding verbose command
+# TODO: adding 'apis to select' option
