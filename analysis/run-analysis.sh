@@ -14,7 +14,7 @@ snps_file_path=
 ld_matrixes_directory=
 available_apis=('gwas-catalog' 'iue-gwas' 'open-targets')
 selected_apis=(${available_apis[@]})
-is_verbose=0
+is_quiet=0
 
 usage() {
     echo "Usage: $scr_name [OPTION]... SNPS_FILE LD_MATRIXES_DIRECTORY                                                                                          "
@@ -22,7 +22,7 @@ usage() {
     echo "SNPS_FILE must have .csv extension                                                                                                                    "
     echo "                                                                                                                                                      "
     echo "  --help | -h                               Displays this help and exit                                                                               "
-    echo "  --verbose | -v                            Displays additional data                                                                                  "
+    echo "  --quiet | -q                              Runs program in quiet mode - hides unneccesary information.                                               "
     echo "  --ld-value <ld_value>                     Percentage value between 0 to 1. If not precised: standard value of 0.75                                  "
     echo "  --p-value <p_value>                       Percentage value between 0 to 1. If not precised: standard value of 0.05                                  "
     echo "  --api <API_NAME_1,API_NAME_2,...>         Specify one or more API names to connect to, separated by commas (default: all). Possible API Names:      "
@@ -115,7 +115,7 @@ run_command() {
     for try in $(seq $max_tries); do
         command="$@"
 
-        if [ "$is_verbose" -eq 1 ]; then
+        if [ "$is_quiet" -eq 0 ]; then
             echo "$scr_name: Running command: '$command' ($try/$max_tries)"
         fi
 
@@ -146,8 +146,8 @@ while true; do
         --help | -h )
         usage
         ;;
-        --verbose | -v )
-        is_verbose=1
+        --quiet | -q )
+        is_quiet=1
         ;;
         --ld-value )
         shift
@@ -175,7 +175,7 @@ done
 set_snps_file_path $1
 set_ld_matrixes_directory $2
 
-if [ "$is_verbose" -eq 1 ]; then
+if [ "$is_quiet" -eq 0 ]; then
     settings_info
 fi
 
@@ -193,7 +193,7 @@ for selected_api in ${selected_apis[@]}; do
         echo 'iue-gwas'
         ;;
         open-targets )
-        echo 'open-targets'
+        run_command python3 find-associations-using-open-targets.py
         ;;
         * )
         error_message "unhandled api '$selected_api'"
@@ -201,7 +201,7 @@ for selected_api in ${selected_apis[@]}; do
     esac
 done
 
-if [ "$is_verbose" -eq 1 ]; then
+if [ "$is_quiet" -eq 0 ]; then
     results_info
 fi
 
