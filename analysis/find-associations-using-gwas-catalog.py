@@ -6,7 +6,7 @@ import pandas
 
 p_value = float(sys.argv[1])
 snps_file_path = '../data/snps-found-via-ld-matrixes.csv'
-results_file_path = '../data/associations-found.csv'
+results_file_path = '../data/associations-found-by-gwas-catalog.csv'
 snps_list = []
 
 def get_api_response(chr, rs_id, start_query_parameter = 0, size_query_parameter = 20):
@@ -94,7 +94,7 @@ def read_snps_csv_and_write_data_to_snps_list():
 
 read_snps_csv_and_write_data_to_snps_list()
 
-required_columns = ['RS_ID', 'CHR', 'BP', 'BASE_SNP', 'LD_VALUE', 'P_VALUE', 'EFO_TRAIT', 'STUDY_ID', 'API_NAME']
+required_columns = ['RS_ID', 'CHR', 'BP', 'BASE_SNP', 'LD_VALUE', 'P_VALUE', 'BETA', 'ODDS_RATIO', 'EFO_TRAIT', 'STUDY_ID', 'API_NAME']
 
 try:
     results_file_dataframe = pandas.read_csv(results_file_path)
@@ -130,6 +130,8 @@ for snp in snps_list:
             'BASE_SNP': base_snp,
             'LD_VALUE': ld_value,
             'P_VALUE': float(association['p_value']),
+            'BETA': float(association['beta']) if association['beta'] is not None else 'null',
+            'ODDS_RATIO': float(association['odds_ratio']) if association['odds_ratio'] is not None else 'null',
             'EFO_TRAIT': association['trait'][0],
             'STUDY_ID': association['study_accession'],
             'API_NAME': 'gwas-catalog'

@@ -77,6 +77,6 @@ for rsids_group in rsids_grouped_by_ld_prefixes:
     rsids = rsids_group['rs_ids']
 
     linked_snps_global += find_linked_snps_by_ld_prefix_and_rsid_list(ld_prefix, rsids)
-
-dataframe = pandas.DataFrame(linked_snps_global)
-dataframe.to_csv(results_file_path, index=False)
+    
+    dataframe = pandas.DataFrame(linked_snps_global)
+    dataframe.to_csv(results_file_path, index=False)
