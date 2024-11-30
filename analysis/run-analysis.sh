@@ -193,7 +193,7 @@ for selected_api in ${selected_apis[@]}; do
         echo 'iue-gwas'
         ;;
         open-targets )
-        run_command python3 find-associations-using-open-targets.py
+        run_command python3 find-associations-using-open-targets.py $p_value
         ;;
         * )
         error_message "unhandled api '$selected_api'"

@@ -142,3 +142,4 @@ for snp in snps_list:
 # TODO: connect open targets
 # TODO: connect IEU Open GWAS project 
 # TODO: create script that lookups the EFO of the snps and prints the traits short description
+# TODO: handle potiential multiple efo traits.
