@@ -63,83 +63,40 @@ def get_associations_by_chr_and_rsid(chr, rsid):
 
     return whole_response
 
-def read_snps_csv_and_write_data_to_snps_list():
-    snps_csv = open(snps_file_path, 'r', newline='')
-
-    csv_reader = csv.reader(snps_csv)
-
-    csv_header = next(csv_reader)
-    csv_header_formated = [value.strip() for value in csv_header]
-
-    rs_id_index = csv_header_formated.index('RS_ID')
-    chr_index = csv_header_formated.index('CHR')
-    bp_index = csv_header_formated.index('BP')
-    base_snp_index = csv_header_formated.index('BASE_SNP')
-    ld_value_index = csv_header_formated.index('LD_VALUE')
-
-    for row in csv_reader:
-        row_formated = [value.strip() for value in row]
-
-        snp_object = {
-            'rs_id': row_formated[rs_id_index],
-            'chr':  int(row_formated[chr_index]),
-            'bp':   int(row_formated[bp_index]),
-            'base_snp': row_formated[base_snp_index],
-            'ld_value': row_formated[ld_value_index]
-        }
-
-        snps_list.append(snp_object)
-               
-    snps_csv.close()
-
-read_snps_csv_and_write_data_to_snps_list()
-
-required_columns = ['RS_ID', 'CHR', 'BP', 'BASE_SNP', 'LD_VALUE', 'P_VALUE', 'BETA', 'ODDS_RATIO', 'EFO_TRAIT', 'STUDY_ID', 'API_NAME']
-
-try:
-    results_file_dataframe = pandas.read_csv(results_file_path)
-except (pandas.errors.EmptyDataError, FileNotFoundError) as error:
-    with open(results_file_path, 'w', newline='') as f:
-        f.write(','.join(required_columns))
-    results_file_dataframe = pandas.read_csv(results_file_path)
-
-for required_column in required_columns:
-    if required_column in results_file_dataframe.columns:
-        continue
-    results_file_dataframe.insert(len(results_file_dataframe.columns), required_column, None)
+def go_through_snps_and_save_associations_to_file(snps_file_path, results_file_path):
+    snps_file = pandas.read_csv(snps_file_path)
+    try:
+        results_file = pandas.read_csv(results_file_path)
+    except (FileNotFoundError, pandas.errors.EmptyDataError):
+        results_file = pandas.DataFrame(columns=['RS_ID', 'CHR', 'BP', 'BASE_SNP', 'LD_VALUE', 'P_VALUE', 'BETA', 'ODDS_RATIO', 'EFO_TRAIT', 'STUDY_ID'])
     
-results_file_dataframe.to_csv(results_file_path, index=False)
+    for snp in snps_file.iterrows():
+        snp_dict = dict(snp[1])
 
-for snp in snps_list:
-    rs_id = snp['rs_id']
-    chr = snp['chr']
-    bp = snp['bp']
-    base_snp = snp['base_snp']
-    ld_value = snp['ld_value']
+        if snp_dict['RS_ID'] in results_file['RS_ID'].unique():
+            continue
 
-    associations = get_associations_by_chr_and_rsid(chr, rs_id)
-    if associations == None:
-        continue
+        snp_associations = get_associations_by_chr_and_rsid(snp_dict['CHR'], snp_dict['RS_ID'])
+        if snp_associations == None:
+            continue
 
-    association_rows = []
-    for association in associations:
-        association_rows.append({
-            'RS_ID': rs_id,
-            'CHR': chr,
-            'BP': bp,
-            'BASE_SNP': base_snp,
-            'LD_VALUE': ld_value,
-            'P_VALUE': float(association['p_value']),
-            'BETA': float(association['beta']) if association['beta'] is not None else 'null',
-            'ODDS_RATIO': float(association['odds_ratio']) if association['odds_ratio'] is not None else 'null',
-            'EFO_TRAIT': association['trait'][0],
-            'STUDY_ID': association['study_accession'],
-            'API_NAME': 'gwas-catalog'
-        })
-    results_file_dataframe = pandas.concat([results_file_dataframe, pandas.DataFrame(association_rows)]).reset_index(drop=True)
-    results_file_dataframe.to_csv(results_file_path, index=False)
+        snp_associations_formated = []
+        for snp_association in snp_associations:
+            for trait in snp_association['trait']:
+                snp_associations_formated.append({
+                    'RS_ID': snp_dict['RS_ID'],
+                    'CHR': snp_dict['CHR'],
+                    'BP': snp_dict['BP'],
+                    'BASE_SNP': snp_dict['BASE_SNP'],
+                    'LD_VALUE': snp_dict['LD_VALUE'],
+                    'P_VALUE': float(snp_association['p_value']),
+                    'BETA': float(snp_association['beta']) if snp_association['beta'] is not None else 'null',
+                    'ODDS_RATIO': float(snp_association['odds_ratio']) if snp_association['odds_ratio'] is not None else 'null',
+                    'EFO_TRAIT': trait,
+                    'STUDY_ID': snp_association['study_accession']
+                })
+    
+        results_file = pandas.concat([results_file, pandas.DataFrame(snp_associations_formated)]).reset_index(drop=True)
+        results_file.to_csv(results_file_path, index=False)
 
-# TODO: connect open targets
-# TODO: connect IEU Open GWAS project 
-# TODO: create script that lookups the EFO of the snps and prints the traits short description
-# TODO: handle potiential multiple efo traits.
+go_through_snps_and_save_associations_to_file(snps_file_path, results_file_path)
