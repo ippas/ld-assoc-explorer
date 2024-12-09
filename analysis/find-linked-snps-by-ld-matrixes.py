@@ -2,6 +2,7 @@ import sys
 import json
 import pandas
 import scipy.sparse as scipy_sparse
+import multiprocessing
 
 ld_matrixes_directory = sys.argv[1]
 ld_value = float(sys.argv[2])
@@ -48,7 +49,7 @@ def load_ld_matrix_by_ld_prefix(ld_prefix):
 
     return ld_matrix
 
-def find_linked_snps_by_ld_prefix_and_rsid_list(ld_prefix, rsid_list, already_added_snps):
+def linked_snps_by_ld_prefix_and_rsid_list(ld_prefix, rsid_list):
     ld_matrix = load_ld_matrix_by_ld_prefix(ld_prefix)
     linked_snps = []
 
@@ -68,12 +69,6 @@ def find_linked_snps_by_ld_prefix_and_rsid_list(ld_prefix, rsid_list, already_ad
             chr = int(ld_prefix.replace('chr', '').split('_')[0])
             bp = int(row_name.split('.')[1])
 
-            if any([
-                rs_id == already_added_snp['RS_ID'] and column_name == already_added_snp['BASE_SNP']
-                for already_added_snp in already_added_snps
-                ]):
-                continue
-
             linked_snps.append({
                 'RS_ID': rs_id,
                 'CHR': chr,
@@ -83,22 +78,69 @@ def find_linked_snps_by_ld_prefix_and_rsid_list(ld_prefix, rsid_list, already_ad
             })
     return linked_snps
 
-found_snps = array_of_dictionaries_from_csv_file(results_file_path)
-rsids_grouped_by_ld_prefixes = read_json_file(grouped_rsids_file_path)
-completed_rsids_groups = read_json_file(completed_rsids_groups_file_path)
-
-for rsids_group in rsids_grouped_by_ld_prefixes:
+def process_rsids_group(rsids_group):
     ld_prefix = rsids_group['ld_prefix']
-    rsids = rsids_group['rs_ids']
+    linked_snps = linked_snps_by_ld_prefix_and_rsid_list(ld_prefix, rsids_group['rs_ids'])
 
-    if (ld_prefix in completed_rsids_groups):
-        continue
- 
-    found_snps += find_linked_snps_by_ld_prefix_and_rsid_list(ld_prefix, rsids, found_snps)
-    
+
+    return {
+        'ld_prefix': ld_prefix,
+        'linked_snps': linked_snps
+    }
+
+def process_worker(input_queue, result_queue):
+    while not input_queue.empty():
+        input_value = input_queue.get()
+        print(f'inside of process worker: {input_value["ld_prefix"]} {multiprocessing.process.current_process()}')
+        result = process_rsids_group(input_value)
+        result_queue.put(result)
+
+def save_progress(found_snps, completed_groups):
+    print(f'saving progress... found_snps:{len(found_snps)}, completed_groups:{len(completed_groups)}')
+
     dataframe = pandas.DataFrame(found_snps)
     dataframe.to_csv(results_file_path, index=False)
 
-    completed_rsids_groups.append(ld_prefix)
     with open(completed_rsids_groups_file_path, 'w') as file:
-        json.dump(completed_rsids_groups, file, indent=4)
+        json.dump(completed_groups, file, indent=4)
+
+def main():
+    rsids_grouped_by_ld_prefixes = read_json_file(grouped_rsids_file_path)
+    completed_rsids_groups = read_json_file(completed_rsids_groups_file_path)
+
+    rsids_groups_to_process = [
+        rsid_group
+        for rsid_group in rsids_grouped_by_ld_prefixes
+        if rsid_group['ld_prefix'] not in completed_rsids_groups
+    ]
+
+    found_snps = array_of_dictionaries_from_csv_file(results_file_path)
+
+    input_queue = multiprocessing.Queue()
+    result_queue = multiprocessing.Queue()
+
+    for input in rsids_groups_to_process:
+        input_queue.put(input)
+
+    num_of_workers = min(2, multiprocessing.cpu_count())
+    workers = []
+
+    for _ in range(num_of_workers):
+        process = multiprocessing.Process(target=process_worker, args=(input_queue, result_queue))
+        workers.append(process)
+        process.start()
+
+    while any(process.is_alive() for process in workers) or not result_queue.empty():
+        result = result_queue.get()
+        completed_rsids_groups.append(result['ld_prefix'])
+        for found_snp in result['linked_snps']:
+            found_snps.append(found_snp)
+        save_progress(found_snps, completed_rsids_groups)
+
+    for process in workers:
+        process.join()
+
+    save_progress(found_snps, completed_rsids_groups)
+
+if __name__ == '__main__':
+    main()
