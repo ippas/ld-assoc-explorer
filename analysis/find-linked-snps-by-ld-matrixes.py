@@ -91,13 +91,10 @@ def process_rsids_group(rsids_group):
 def process_worker(input_queue, result_queue):
     while not input_queue.empty():
         input_value = input_queue.get()
-        print(f'inside of process worker: {input_value["ld_prefix"]} {multiprocessing.process.current_process()}')
         result = process_rsids_group(input_value)
         result_queue.put(result)
 
 def save_progress(found_snps, completed_groups):
-    print(f'saving progress... found_snps:{len(found_snps)}, completed_groups:{len(completed_groups)}')
-
     dataframe = pandas.DataFrame(found_snps)
     dataframe.to_csv(results_file_path, index=False)
 
@@ -122,7 +119,7 @@ def main():
     for input in rsids_groups_to_process:
         input_queue.put(input)
 
-    num_of_workers = min(2, multiprocessing.cpu_count())
+    num_of_workers = min(3, multiprocessing.cpu_count())
     workers = []
 
     for _ in range(num_of_workers):
@@ -134,7 +131,14 @@ def main():
         result = result_queue.get()
         completed_rsids_groups.append(result['ld_prefix'])
         for found_snp in result['linked_snps']:
+            if (any([
+                snp['RS_ID'] == found_snp["RS_ID"] and snp['BASE_SNP'] == found_snp['BASE_SNP']
+                for snp in found_snps
+                ])):
+                continue
+
             found_snps.append(found_snp)
+        
         save_progress(found_snps, completed_rsids_groups)
 
     for process in workers:
