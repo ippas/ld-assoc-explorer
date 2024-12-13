@@ -97,8 +97,10 @@ def add_snp_grouped_by_ld_prefix(ld_prefix, snp):
     for object in rsids_grouped_by_ld_prefixes:
         if object['ld_prefix'] != ld_prefix:
             continue
+        
+        if snp not in object['rs_ids']:
+            object['rs_ids'].append(snp)
 
-        object['rs_ids'].append(snp)
         return
 
     rsids_grouped_by_ld_prefixes.append(new_object)
