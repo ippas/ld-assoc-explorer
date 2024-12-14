@@ -3,11 +3,9 @@ import requests
 import csv
 import pandas
 
-
 ARG_P_VALUE = float(sys.argv[1])
-snps_file_path = '../data/snps-found-via-ld-matrixes.csv'
-results_file_path = '../data/associations-found-by-open-targets.csv'
-
+FOUND_SNPS_FILE_PATH = '../data/snps-found-via-ld-matrixes.csv'
+RESULTS_FILE_PATH = '../data/associations-found-by-open-targets.csv'
 API_URL = "https://api.genetics.opentargets.org/graphql"
 
 def get_variant_id_from_rs_id(rs_id: str) -> str:
@@ -22,14 +20,16 @@ def get_variant_id_from_rs_id(rs_id: str) -> str:
     """
     variables = {"rsId": rs_id}
 
-    search_result = requests.post(API_URL, json={'query': search_query, 'variables':variables}).json()
+    for _ in range(5):
+        search_result = requests.post(API_URL, json={'query': search_query, 'variables':variables})
 
-    try:
-        variant_id = search_result['data']['search']['variants'][0]['id']
-    except IndexError:
-        variant_id = None
+        if search_result.status_code != 200:
+            continue
 
-    return variant_id
+        try:
+            return search_result.json()['data']['search']['variants'][0]['id']
+        except:
+            return None
 
 def get_variant_data(variant_id: str) -> dict:
     variant_query = """
@@ -55,22 +55,31 @@ def get_variant_data(variant_id: str) -> dict:
     """
     variables = {"variantId": variant_id}
 
-    variant_result = requests.post(API_URL, json={'query': variant_query, 'variables': variables}).json()
-    return variant_result
+    for _ in range(5):
+        variant_result = requests.post(API_URL, json={'query': variant_query, 'variables': variables})
+
+        if variant_result.status_code != 200:
+            continue
+
+        try:
+            return variant_result.json()
+        except:
+            return None
 
 def get_rs_id_associations_filtered_by_p_value(rs_id: str, p_lower: float, p_upper: float) -> list:
     variant_id = get_variant_id_from_rs_id(rs_id)
-
     if (variant_id == None):
         return []
 
     variant_data = get_variant_data(variant_id)
+    if (variant_data == None):
+        return []
 
     rs_id_associations = []
 
     variant_associations = variant_data['data']['pheWAS']['associations']
     for association in variant_associations:
-        if (association['pval'] < p_lower or association['pval'] > p_upper):
+        if (float(association['pval']) < p_lower or float(association['pval']) > p_upper):
             continue
 
         rs_id_associations.append({
@@ -84,74 +93,63 @@ def get_rs_id_associations_filtered_by_p_value(rs_id: str, p_lower: float, p_upp
 
     return rs_id_associations
 
-def get_rs_ids_from_snps_csv() -> list:
-    snps_csv = open(snps_file_path, 'r', newline='')
-
-    csv_reader = csv.reader(snps_csv)
-
-    csv_header = next(csv_reader)
-    csv_header_formated = [value.strip() for value in csv_header]
-
-    rs_id_index = csv_header_formated.index('RS_ID')
-    chr_index = csv_header_formated.index('CHR')
-    bp_index = csv_header_formated.index('BP')
-    base_snp_index = csv_header_formated.index('BASE_SNP')
-    ld_value_index = csv_header_formated.index('LD_VALUE')
-
-    snps_list = []
-
-    for row in csv_reader:
-        row_formated = [value.strip() for value in row]
-
-        snp_object = {
-            'rs_id': row_formated[rs_id_index],
-            'chr':  int(row_formated[chr_index]),
-            'bp':   int(row_formated[bp_index]),
-            'base_snp': row_formated[base_snp_index],
-            'ld_value': row_formated[ld_value_index]
-        }
-
-        snps_list.append(snp_object)
-               
-    snps_csv.close()
+def array_of_dictionaries_from_csv_file(file_path: str) -> list:
+    try:
+        snps_file = pandas.read_csv(file_path)
+    except (FileNotFoundError, pandas.errors.EmptyDataError):
+        return []
     
-    return snps_list
+    return [dict(snp[1]) for snp in snps_file.iterrows()]
 
-required_columns = ['RS_ID', 'CHR', 'BP', 'BASE_SNP', 'LD_VALUE', 'P_VALUE', 'BETA', 'ODDS_RATIO', 'EFO_TRAIT', 'STUDY_ID', 'PMID', 'API_NAME']
+def save_progress(found_associations: list) -> None:
+    dataframe = pandas.DataFrame(found_associations)
+    dataframe.to_csv(RESULTS_FILE_PATH, index=False)
 
-try:
-    results_file_dataframe = pandas.read_csv(results_file_path)
-except (pandas.errors.EmptyDataError, FileNotFoundError) as error:
-    with open(results_file_path, 'w', newline='') as f:
-        f.write(','.join(required_columns))
-    results_file_dataframe = pandas.read_csv(results_file_path)
+def main() -> None:
+    snps_found_via_ld_matrixes = array_of_dictionaries_from_csv_file(FOUND_SNPS_FILE_PATH)
+    found_associations = array_of_dictionaries_from_csv_file(RESULTS_FILE_PATH)
 
-for required_column in required_columns:
-    if required_column in results_file_dataframe.columns:
-        continue
-    results_file_dataframe.insert(len(results_file_dataframe.columns), required_column, None)
-    
-results_file_dataframe.to_csv(results_file_path, index=False)
+    completed_snps = [
+        (snp['RS_ID'], snp['BASE_SNP'])
+        for snp in found_associations
+    ]
 
-snps = get_rs_ids_from_snps_csv()
-for snp in snps:
-    rs_id_associations = get_rs_id_associations_filtered_by_p_value(snp['rs_id'], 0, ARG_P_VALUE)
-    formated_associations = []
-    for association in rs_id_associations:
-        for index, efo in enumerate(association['efos']):
-            formated_associations.append({
-                'RS_ID': snp['rs_id'],
-                'CHR': snp['chr'],
-                'BP': snp['bp'],
-                'BASE_SNP': snp['base_snp'],
-                'LD_VALUE': snp['ld_value'],
-                'P_VALUE': float(association['p_value']),
-                'BETA': float(association['beta']) if association['beta'] != 'null' else 'null',
-                'ODDS_RATIO': float(association['odds_ratio']) if association['odds_ratio'] != 'null' else 'null',
-                'EFO_TRAIT': efo,
-                'STUDY_ID': association['study_id'],
-                'PMID': association['pmid'],
-                'API_NAME': 'open-targets'
-            })
-    results_file_dataframe = pandas.concat([results_file_dataframe, pandas.DataFrame(formated_associations)]).reset_index(drop=True)
-    results_file_dataframe.to_csv(results_file_path, index=False)
+    snps_to_process = [
+        snp
+        for snp in snps_found_via_ld_matrixes
+        if (snp['RS_ID'], snp['BASE_SNP']) not in completed_snps
+    ]
+
+    for snp in snps_to_process:
+        rs_id_associations = get_rs_id_associations_filtered_by_p_value(snp['RS_ID'], 0, ARG_P_VALUE)
+        if rs_id_associations == []:
+            found_associations.append({
+                    'RS_ID': snp['RS_ID'],
+                    'CHR': snp['CHR'],
+                    'BP': snp['BP'],
+                    'BASE_SNP': snp['BASE_SNP'],
+                    'LD_VALUE': snp['LD_VALUE']
+                })
+            save_progress(found_associations)
+            continue
+
+        for association in rs_id_associations:
+            for efo_index in range(max(1,len(association['efos']))):
+                found_associations.append({
+                    'RS_ID': snp['RS_ID'],
+                    'CHR': snp['CHR'],
+                    'BP': snp['BP'],
+                    'BASE_SNP': snp['BASE_SNP'],
+                    'LD_VALUE': snp['LD_VALUE'],
+                    'P_VALUE': float(association['p_value']),
+                    'BETA': float(association['beta']) if association['beta'] != 'null' else 'null',
+                    'ODDS_RATIO': float(association['odds_ratio']) if association['odds_ratio'] != 'null' else 'null',
+                    'EFO_TRAIT': association['efos'][efo_index] if len(association['efos']) > 0 else 'null',
+                    'STUDY_ID': association['study_id'],
+                    'PMID': association['pmid']
+                })
+
+        save_progress(found_associations)
+
+if __name__ == "__main__":
+    main()
