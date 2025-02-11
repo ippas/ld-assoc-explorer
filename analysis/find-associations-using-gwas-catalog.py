@@ -1,5 +1,4 @@
 import sys
-import csv
 import requests
 import re
 import pandas
@@ -13,7 +12,9 @@ def get_api_response(chr, rs_id, start_query_parameter = 0, size_query_parameter
     query_arguments = f'start={start_query_parameter}&size={size_query_parameter}&p_lower=0&p_upper={p_value}'
     api_url = f'https://www.ebi.ac.uk/gwas/summary-statistics/api/chromosomes/{chr}/associations/{rs_id}?{query_arguments}'
 
+    print(api_url)
     api_response = requests.get(api_url, verify=True)
+    print(api_response)
 
     if (api_response.status_code == 404):
         return 'Not found'

@@ -1,116 +1,103 @@
 import sys
 import os
-import csv
+import pandas
 import json
 
-snps_file_path = sys.argv[1]
-ld_matrixes_directory = sys.argv[2]
+SNPS_FILE_PATH = sys.argv[1]
 
-results_file_path = '../data/rsids-grouped-by-ld-prefixes.json'
+LD_MATRIXES_DIRECTORY = sys.argv[2]
+LD_FILE_NAMES = os.listdir(LD_MATRIXES_DIRECTORY)
 
-snps_file_name = snps_file_path.split('/')[-1]
-ld_files = os.listdir(ld_matrixes_directory)
+RESULTS_FILE_PATH = '../data/rsids-grouped-by-ld-prefixes.json'
 
-ld_prefixes = []
-snps_list = []
-rsids_grouped_by_ld_prefixes= []
-
-def error(message):
+def error(message: str) -> None:
     script_name = sys.argv[0].split('/')[-1]
     print(f"{script_name}: {message}", file=sys.stderr)
     sys.exit(1)
 
-def ld_files_to_ld_prefixes():
-    for ld_file in ld_files:
+def ld_prefixes_from_ld_files(ld_file_names: list) -> list:
+    ld_prefixes = []
+    for ld_file in ld_file_names:
         if not ld_file.startswith('chr'):
             continue
         if not ld_file.endswith('.gz'):
             continue
         ld_prefixes.append(ld_file.replace('.gz', ''))
+    return ld_prefixes
 
-def read_snps_csv_and_write_data_to_snps_list():
-    snps_csv = open(snps_file_path, 'r', newline='')
+def snps_list_from_snps_file(snps_file_path: str) -> list:
+    snps_file_name = snps_file_path.split('/')[-1]
 
-    csv_reader = csv.reader(snps_csv)
+    try:
+        snps_file = pandas.read_csv(snps_file_path)
+    except pandas.errors.EmptyDataError:
+        error(f'{snps_file_name}: cannot be empty')
 
-    csv_header = next(csv_reader)
-    csv_header_formated = [value.strip() for value in csv_header]
-    needed_columns = ['RS_ID', 'CHR', 'BP']
+    snps_file_columns = snps_file.columns
+    required_columns = ['RS_ID', 'CHR', 'BP']
 
-    if not all(column in csv_header_formated for column in needed_columns):
-        error(f'{snps_file_name}: must contain header with following columns: {needed_columns}')
+    if any([required_column not in snps_file_columns for required_column in required_columns]):
+        error(f'{snps_file_name}: must contain header with following columns: {required_columns}')
+    
+    return [dict(snp[1]) for snp in snps_file.iterrows()]
 
-    rs_id_index = csv_header_formated.index('RS_ID')
-    chr_index = csv_header_formated.index('CHR')
-    bp_index = csv_header_formated.index('BP')
-
-    for row in csv_reader:
-        row_formated = [value.strip() for value in row]
-
-        rs_id = row_formated[rs_id_index]
-
-        if not rs_id.startswith('rs'):
-            rs_id = f'rs{rs_id}'
-
-        try:
-            snp_object = {
-                'rs_id': rs_id,
-                'chr':  int(row_formated[chr_index]),
-                'bp':   int(row_formated[bp_index])
-            }
-        except ValueError as e:
-            error(f'{snps_file_name}: {e}')
-
-        snps_list.append(snp_object)
-               
-    snps_csv.close()
-
-def ld_prefixes_by_chr_and_bp(chr, bp):
-    founded_ld_prefixes = []
+def matching_ld_prefixes_by_chr_and_bp(ld_prefixes: list, chr: int, bp: int) -> list:
+    matching_ld_prefixes = []
 
     for ld_prefix in ld_prefixes:
         ld_prefix_formated = [int(value) for value in ld_prefix.replace('chr', '').split('_')]
 
-        if ld_prefix_formated[0] != chr:
+        if ld_prefix_formated[0] != int(chr):
             continue
-        if ld_prefix_formated[1] > bp:
+        if ld_prefix_formated[1] > int(bp):
             continue
-        if ld_prefix_formated[2] < bp:
+        if ld_prefix_formated[2] < int(bp):
             continue
 
-        founded_ld_prefixes.append(ld_prefix)
+        matching_ld_prefixes.append(ld_prefix)
 
-    return founded_ld_prefixes
+    return matching_ld_prefixes
 
-def add_snp_grouped_by_ld_prefix(ld_prefix, snp):
-    new_object = {
+def append_rsid_grouped_by_ld_prefix_to_list(grouped_rsids: list, ld_prefix: str, snp: str) -> list:
+    new_group = {
         'ld_prefix': ld_prefix,
         'rs_ids': [
             snp
         ]
     }
 
-    if len(rsids_grouped_by_ld_prefixes) == 0:
-        rsids_grouped_by_ld_prefixes.append(new_object)
-        return
-
-    for object in rsids_grouped_by_ld_prefixes:
-        if object['ld_prefix'] != ld_prefix:
+    if len(grouped_rsids) == 0:
+        grouped_rsids.append(new_group)
+        return grouped_rsids
+    
+    for group in grouped_rsids:
+        if group['ld_prefix'] != ld_prefix:
             continue
+
+        if snp in group['rs_ids']:
+            return grouped_rsids
+
+        group['rs_ids'].append(snp)
+        return grouped_rsids
         
-        if snp not in object['rs_ids']:
-            object['rs_ids'].append(snp)
+    grouped_rsids.append(new_group)
+    return grouped_rsids
 
-        return
+def main() -> None:
+    ld_prefixes = ld_prefixes_from_ld_files(LD_FILE_NAMES)
+    snps_list = snps_list_from_snps_file(SNPS_FILE_PATH)
 
-    rsids_grouped_by_ld_prefixes.append(new_object)
+    grouped_rsids = []
 
-ld_files_to_ld_prefixes()
-read_snps_csv_and_write_data_to_snps_list()
+    for snp in snps_list:
+        matching_ld_prefixes = matching_ld_prefixes_by_chr_and_bp(ld_prefixes, snp['CHR'], snp['BP'])
+        
+        rsid = snp['RS_ID']
+        for matching_ld_prefix in matching_ld_prefixes:
+            grouped_rsids = append_rsid_grouped_by_ld_prefix_to_list(grouped_rsids, matching_ld_prefix, rsid)
 
-for snp in snps_list:
-    for ld_prefix in ld_prefixes_by_chr_and_bp(snp['chr'], snp['bp']):
-        add_snp_grouped_by_ld_prefix(ld_prefix, snp['rs_id'])
+    with open(RESULTS_FILE_PATH, 'w') as file:
+        file.write(json.dumps(grouped_rsids, indent=4))
 
-with open(results_file_path, 'w') as file:
-    file.write(json.dumps(rsids_grouped_by_ld_prefixes, indent=4))
+if __name__ == "__main__":
+    main()

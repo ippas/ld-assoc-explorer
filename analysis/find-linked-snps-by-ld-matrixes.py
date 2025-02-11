@@ -111,6 +111,9 @@ def main():
         if rsid_group['ld_prefix'] not in completed_rsids_groups
     ]
 
+    if len(rsids_groups_to_process) == 0:
+        return
+
     found_snps = array_of_dictionaries_from_csv_file(results_file_path)
 
     input_queue = multiprocessing.Queue()
@@ -119,7 +122,7 @@ def main():
     for input in rsids_groups_to_process:
         input_queue.put(input)
 
-    num_of_workers = min(3, multiprocessing.cpu_count())
+    num_of_workers = min(3, multiprocessing.cpu_count(), len(rsids_groups_to_process))
     workers = []
 
     for _ in range(num_of_workers):
@@ -147,4 +150,4 @@ def main():
     save_progress(found_snps, completed_rsids_groups)
 
 if __name__ == '__main__':
-    main()
+    main()  

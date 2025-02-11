@@ -1,6 +1,5 @@
 import sys
 import requests
-import csv
 import pandas
 
 ARG_P_VALUE = float(sys.argv[1])
@@ -119,6 +118,9 @@ def main() -> None:
         for snp in snps_found_via_ld_matrixes
         if (snp['RS_ID'], snp['BASE_SNP']) not in completed_snps
     ]
+
+    if len(snps_to_process) == 0:
+        return
 
     for snp in snps_to_process:
         rs_id_associations = get_rs_id_associations_filtered_by_p_value(snp['RS_ID'], 0, ARG_P_VALUE)
