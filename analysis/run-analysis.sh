@@ -8,44 +8,103 @@ cd $scr_dir
 
 # START OF THE SCRIPT
 
+available_apis=('gwas-catalog' 'gwas-top-associations' 'iue-gwas' 'open-targets' 'off')
+selected_apis=(${available_apis[@]})
+
 ld_value=0.75
 p_value=0.05
 snps_file_path=
 ld_matrixes_directory=
-available_apis=('gwas-catalog' 'iue-gwas' 'open-targets')
-selected_apis=(${available_apis[@]})
-is_quiet=0
+
+max_tries=5
+
+do_resume=0
+skip_ld=0
+
+analysis_start_time=
+last_run_time=
 
 usage() {
-    echo "Usage: $scr_name [OPTION]... SNPS_FILE LD_MATRIXES_DIRECTORY                                                                                          "
-    echo "Searches for associations of provided SNPS from SNPS_FILE, taking into account nearby SNPS with high ld from LD_MATRIXES DIRECTORY                    "
-    echo "SNPS_FILE must have .csv extension                                                                                                                    "
-    echo "                                                                                                                                                      "
-    echo "  --help | -h                               Displays this help and exit                                                                               "
-    echo "  --quiet | -q                              Runs program in quiet mode - hides unneccesary information.                                               "
-    echo "  --ld-value <ld_value>                     Percentage value between 0 to 1. If not precised: standard value of 0.75                                  "
-    echo "  --p-value <p_value>                       Percentage value between 0 to 1. If not precised: standard value of 0.05                                  "
-    echo "  --api <API_NAME_1,API_NAME_2,...>         Specify one or more API names to connect to, separated by commas (default: all). Possible API Names:      "
-    echo "                                              $(echo ${available_apis[@]} | sed 's/ /, /g')                                                           "
+    _usage="\
+Usage: $scr_name [OPTION]... SNPS_FILE LD_MATRIXES_DIRECTORY
+Searches for associations of provided SNPS from SNPS_FILE, taking into account nearby SNPS with high ld from LD_MATRIXES_DIRECTORY
+
+SNPS_FILE must have .csv extension
+
+  --ld-value <ld_value>               Percentage value between 0 to 1. If not precised: standard value of 0.75
+  --p-value <p_value>                 Percentage value between 0 to 1. If not precised: standard value of 0.05
+  --api <API_NAME_1,API_NAME_2,...>   Specify one or more API names to connect to, separated by commas (default: all except 'off'). Possible API Names: 
+                                        $(echo ${available_apis[@]} | sed 's/ /, /g')
+  --max-tries <max_tries>             Maximum number of times the program will try to run a command.
+  -r, --resume                        Resumes a previously interrupted analysis using the same data and options as the
+                                        prior run, instead of starting a new analysis.
+  -s, --skip-ld                       Skips the step of identifying genes with high LD.
+                                        This option allows the analysis to proceed without considering finding genes by high LD.
+  -h, --help                          Displays this help and exit
+"
+    echo "$_usage"
     exit 1
 }
 
 settings_info() {
-    echo "$scr_name: Settings:"
-    echo "  SNPS_FILE           $snps_file_path                                        "
-    echo "  LD_MATRIXES_DIR     $ld_matrixes_directory                                 "
-    echo "  LD_VALUE            $ld_value                                              "
-    echo "  P_VALUE             $p_value                                               "
-    echo "  API[s]              $(echo ${selected_apis[@]} | sed "s/ /, /g" )          "
-    echo "                                                                             "
+    _info="\
+====================================
+    $scr_name: Info:
+====================================
+Mode: $( if [ "$do_resume" -eq 1 ]; then echo "Resuming previous analysis"; else echo "Starting new analysis"; fi )\
+$( if [ "$do_resume" -eq 1 ]; then echo -e "\nAnalysis Start: $analysis_start_time"; fi )\
+$( if [ "$do_resume" -eq 1 ]; then echo -e "\nLast Run: $last_run_time"; fi )
+
+SNPS_FILE           $snps_file_path
+$( if [ "$skip_ld" -eq 0 ]; then echo -e "LD_MATRIXES_DIR     $ld_matrixes_directory"; fi )\
+$( if [ "$skip_ld" -eq 0 ]; then echo -e "\nLD_VALUE            $ld_value\n \b"; fi )\
+P_VALUE             $p_value                                               
+API[s]              $(echo ${selected_apis[@]} | sed "s/ /, /g" )          
+MAX_TRIES           $max_tries
+\
+$( if [ "$do_resume" -eq 1 ]; then echo -e "\nNote: Settings cannot be changed in resume mode. Using saved options."; fi )
+====================================
+"
+    echo "$_info"
 }
 
 results_info() {
-    echo -e "\n$scr_name: All scripts finished successfully. The output was saved to ../results  "
+    echo -e "\nAll scripts finished successfully. The output was saved to ../results  "
 }
 
 error_message() {
     echo "$scr_name: $1" >&2
+}
+
+read_var_state() {
+    if [ ! -e "../data/state" ]; then
+        error_message "No previous analysis found. A first analysis must be run before resuming."
+        exit 1 
+    fi
+
+    source "../data/state"
+    echo $analysis_start_time
+}
+
+save_var_state() {
+    _state="\
+analysis_start_time=\"$( if [ -e "../data/state" ]; then echo "$analysis_start_time"; else echo "$(date -u +%F\ %T\ UTC)"; fi )\"
+last_run_time=\"$(date -u +%F\ %T\ UTC)\"
+
+snps_file_path=$snps_file_path
+ld_matrixes_directory=$ld_matrixes_directory
+
+ld_value=$ld_value
+p_value=$p_value
+
+selected_apis=(${selected_apis[@]})
+
+max_tries=$max_tries
+
+skip_ld=$skip_ld
+
+"
+    echo "$_state" > "../data/state"
 }
 
 set_ld_value() {
@@ -109,17 +168,22 @@ set_apis() {
     done
 }
 
-run_command() {
-    max_tries=1
+set_max_tries() {
+    if [[ ! "$1" =~ ^[0-9]+$ || "$1" -eq 0 ]]; then
+        error_message "--max-tries '$1' has to be positive integer"
+        exit 1
+    fi
 
+    max_tries=$1
+}
+
+run_command() {
     for try in $(seq $max_tries); do
         command="$@"
 
-        if [ "$is_quiet" -eq 0 ]; then
-            echo "$scr_name: Running command: '$command' ($try/$max_tries)"
-        fi
+        echo "$scr_name: Running command: '$command' ($try/$max_tries)"
 
-        $command
+        eval "$command"
         exit_code=$?
 
         if [[ $exit_code -ne 0 && $try -ne $max_tries ]]; then
@@ -136,74 +200,118 @@ run_command() {
     done
 }
 
+declare_variables() {
+    while true; do
+        case "$1" in
+            --help | -h )
+            usage
+            ;;
+            --resume | -r )
+            do_resume=1
+            read_var_state
+            return
+            ;;
+            --skip-ld | -s )
+            skip_ld=1
+            ;;
+            --ld-value )
+            shift
+            set_ld_value $1
+            ;;
+            --p-value ) 
+            shift
+            set_p_value $1
+            ;;
+            --api )
+            shift
+            set_apis $1
+            ;;
+            --max-tries )
+            shift
+            set_max_tries $1
+            ;;
+            -* )
+            error_message "invalid option '$1'"
+            exit 1
+            ;;
+            * )
+            break
+            ;;
+        esac
+        shift
+    done
 
-if [ "$#" -eq 0 ]; then
-    usage
-fi
+    set_snps_file_path $1
 
-while true; do
-    case "$1" in
-        --help | -h )
+    if [ "$skip_ld" -eq 0 ]; then
+        set_ld_matrixes_directory $2
+    fi
+}
+
+main() {
+    if [ "$#" -eq 0 ]; then
         usage
-        ;;
-        --quiet | -q )
-        is_quiet=1
-        ;;
-        --ld-value )
-        shift
-        set_ld_value $1
-        ;;
-        --p-value ) 
-        shift
-        set_p_value $1
-        ;;
-        --api )
-        shift
-        set_apis $1
-        ;;
-        -* )
-        error_message "invalid option '$1'"
-        exit 1
-        ;;
-        * )
-        break
-        ;;
-    esac
-    shift
-done
+    fi
 
-set_snps_file_path $1
-set_ld_matrixes_directory $2
+    declare_variables "$@"
 
-if [ "$is_quiet" -eq 0 ]; then
     settings_info
-fi
 
-run_command find ../data -regextype egrep -regex '.*(\.csv|\.json)' -delete
+    if [ "$do_resume" -eq 0 ]; then
+        find ../data -regextype egrep -regex '.*\.(csv|json)$' -delete
 
-run_command python3 ../preprocessing/group-snps-by-chr-and-bp.py $snps_file_path $ld_matrixes_directory
-run_command python3 find-linked-snps-by-ld-matrixes.py $ld_matrixes_directory $ld_value
+        if [ -e "../data/state" ]; then
+            rm "../data/state"
+        fi
 
-for selected_api in ${selected_apis[@]}; do
-    case "$selected_api" in
-        gwas-catalog )
-        run_command python3 find-associations-using-gwas-catalog.py $p_value
-        ;;
-        iue-gwas )
-        echo 'iue-gwas'
-        ;;
-        open-targets )
-        run_command python3 find-associations-using-open-targets.py $p_value
-        ;;
-        * )
-        error_message "unhandled api '$selected_api'"
-        ;;
-    esac
-done
+        cp $snps_file_path ../data/snps-for-analysis.csv
 
-if [ "$is_quiet" -eq 0 ]; then
+        if [ "$skip_ld" -eq 0 ]; then
+            run_command "python3 ../preprocessing/group-snps-by-chr-and-bp.py ../data/snps-for-analysis.csv $ld_matrixes_directory"
+        fi
+    fi
+
+    save_var_state
+
+    if [ "$skip_ld" -eq 0 ]; then
+        run_command "python3 find-linked-snps-by-ld-matrixes.py $ld_matrixes_directory $ld_value"
+        cp "../data/snps-found-via-ld-matrixes.csv" "../results/"
+    else
+        cp "../data/snps-for-analysis.csv" "../data/snps-found-via-ld-matrixes.csv"
+    fi
+
+    for selected_api in ${selected_apis[@]}; do
+        case "$selected_api" in
+            off )
+            break
+            ;;
+            gwas-catalog )
+            run_command "python3 find-associations-using-gwas-catalog.py $p_value"
+            cp "../data/associations-found-by-gwas-catalog.csv" "../results/"
+            ;;
+            gwas-top-associations )
+            run_command "python3 find-associations-using-gwas-top-associations.py $p_value"
+            cp "../data/associations-found-by-gwas-catalog-top-associations.csv" "../results/"
+            ;;
+            iue-gwas )
+            echo 'iue-gwas'
+            ;;
+            open-targets )
+            run_command "python3 find-associations-using-open-targets.py $p_value"
+            cp "../data/associations-found-by-open-targets.csv" "../results/"
+            ;;
+            * )
+            error_message "unhandled api '$selected_api'"
+            ;;
+        esac
+    done
+    
     results_info
-fi
+    rm "../data/state"
+
+}
+
+main "$@"
 
 # END OF THE SCRIPT
 
