@@ -41,6 +41,7 @@ def get_variant_data(variant_id: str) -> dict:
             pmid
             source
             traitEfos
+            traitReported
             __typename
         }
         pval
@@ -83,11 +84,13 @@ def get_rs_id_associations_filtered_by_p_value(rs_id: str, p_lower: float, p_upp
 
         rs_id_associations.append({
             'study_id': association['study']['studyId'],
+            'trait_reported': association['study']['traitReported'],
             'pmid': association['study']['pmid'],
             'efos': association['study']['traitEfos'],
             'p_value': float(association['pval']) if (association['pval']) is not None else 'null',
             'beta': float(association['beta']) if (association['beta']) is not None else 'null',
-            'odds_ratio': float(association['oddsRatio']) if (association['oddsRatio']) is not None else 'null'
+            'odds_ratio': float(association['oddsRatio']) if (association['oddsRatio']) is not None else 'null',
+            'source': association['study']['source']
         })
 
     return rs_id_associations
@@ -96,28 +99,41 @@ def array_of_dictionaries_from_csv_file(file_path: str) -> list:
     try:
         snps_file = pandas.read_csv(file_path)
     except (FileNotFoundError, pandas.errors.EmptyDataError):
-        return []
+        return [], []
     
-    return [dict(snp[1]) for snp in snps_file.iterrows()]
+    return [dict(snp[1]) for snp in snps_file.iterrows()], snps_file.columns
 
 def save_progress(found_associations: list) -> None:
     dataframe = pandas.DataFrame(found_associations)
+    dataframe.dropna(how='all', axis=1, inplace=True)
     dataframe.to_csv(RESULTS_FILE_PATH, index=False)
 
 def main() -> None:
-    snps_found_via_ld_matrixes = array_of_dictionaries_from_csv_file(FOUND_SNPS_FILE_PATH)
-    found_associations = array_of_dictionaries_from_csv_file(RESULTS_FILE_PATH)
+    snps_found_via_ld_matrixes, header_columns = array_of_dictionaries_from_csv_file(FOUND_SNPS_FILE_PATH)
+    found_associations, _ = array_of_dictionaries_from_csv_file(RESULTS_FILE_PATH)
 
-    completed_snps = [
-        (snp['RS_ID'], snp['BASE_SNP'])
-        for snp in found_associations
-    ]
+    if 'BASE_SNP' not in header_columns:
+        completed_snps = [
+            snp['RS_ID']
+            for snp in found_associations
+        ]
 
-    snps_to_process = [
-        snp
-        for snp in snps_found_via_ld_matrixes
-        if (snp['RS_ID'], snp['BASE_SNP']) not in completed_snps
-    ]
+        snps_to_process = [
+            snp
+            for snp in snps_found_via_ld_matrixes
+            if snp['RS_ID'] not in completed_snps
+        ]
+    else:
+        completed_snps = [
+            (snp['RS_ID'], snp['BASE_SNP'])
+            for snp in found_associations
+        ]
+
+        snps_to_process = [
+            snp
+            for snp in snps_found_via_ld_matrixes
+            if (snp['RS_ID'], snp['BASE_SNP']) not in completed_snps
+        ]
 
     if len(snps_to_process) == 0:
         return
@@ -129,8 +145,8 @@ def main() -> None:
                     'RS_ID': snp['RS_ID'],
                     'CHR': snp['CHR'],
                     'BP': snp['BP'],
-                    'BASE_SNP': snp['BASE_SNP'],
-                    'LD_VALUE': snp['LD_VALUE']
+                    'BASE_SNP': snp['BASE_SNP'] if 'BASE_SNP' in header_columns else float('NaN'),
+                    'LD_VALUE': snp['LD_VALUE'] if 'LD_VALUE' in header_columns else float('NaN'),
                 })
             save_progress(found_associations)
             continue
@@ -141,14 +157,16 @@ def main() -> None:
                     'RS_ID': snp['RS_ID'],
                     'CHR': snp['CHR'],
                     'BP': snp['BP'],
-                    'BASE_SNP': snp['BASE_SNP'],
-                    'LD_VALUE': snp['LD_VALUE'],
+                    'BASE_SNP': snp['BASE_SNP'] if 'BASE_SNP' in header_columns else float('NaN'),
+                    'LD_VALUE': snp['LD_VALUE'] if 'LD_VALUE' in header_columns else float('NaN'),
                     'P_VALUE': float(association['p_value']),
-                    'BETA': float(association['beta']) if association['beta'] != 'null' else 'null',
                     'ODDS_RATIO': float(association['odds_ratio']) if association['odds_ratio'] != 'null' else 'null',
-                    'EFO_TRAIT': association['efos'][efo_index] if len(association['efos']) > 0 else 'null',
+                    'BETA': float(association['beta']) if association['beta'] != 'null' else 'null',
+                    'PUBMEDID': association['pmid'],
                     'STUDY_ID': association['study_id'],
-                    'PMID': association['pmid']
+                    'DB_SOURCE': association['source'],
+                    'EFO_TRAIT': association['efos'][efo_index] if len(association['efos']) > 0 else 'null',
+                    'DISEASE/TRAIT': association['trait_reported']
                 })
 
         save_progress(found_associations)

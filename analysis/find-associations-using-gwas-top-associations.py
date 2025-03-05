@@ -12,19 +12,21 @@ RESULTS_FILE_PATH = '../data/associations-found-by-gwas-top-associations.csv'
 def main():
     snps_to_analise = pandas.read_csv(SNP_TO_ANALISE)
 
-    associations_file = pandas.read_csv(ASSOCIATIONS_FILE, sep='\t')
+    associations_file = pandas.read_csv(ASSOCIATIONS_FILE, sep='\t', low_memory=False)
 
     associations_filtered = associations_file.loc[
                                     associations_file['PVALUE_MLOG'] >= P_VALUE_MLOG, 
-                                    ['PUBMEDID', 'SNPS', 'DISEASE/TRAIT', 'PVALUE_MLOG', 'OR or BETA', 'STUDY ACCESSION', 'MAPPED_TRAIT_URI']
-                                 ]
-    
-    associations_filtered = associations_filtered[associations_file['SNPS'].isin(snps_to_analise['RS_ID'])]
-    associations_renamed = associations_filtered.rename(columns={
-        "SNPS": 'RS_ID'
-    })
+                                    ['SNPS', 'PVALUE_MLOG', 'OR or BETA', 'PUBMEDID', 'STUDY ACCESSION', 'MAPPED_TRAIT_URI', 'DISEASE/TRAIT']
+                                ]
 
-    merged_associations_and_snps = pandas.merge(snps_to_analise, associations_renamed, on="RS_ID")
+    associations_filtered = associations_filtered[associations_file['SNPS'].isin(snps_to_analise['RS_ID'])]
+
+    merged_associations_and_snps = snps_to_analise.merge(associations_filtered, left_on='RS_ID', right_on='SNPS', how='left')
+
+    merged_associations_and_snps = merged_associations_and_snps.rename(columns={
+        'STUDY ACCESSION': 'STUDY_ID',
+        'OR or BETA': 'OR/BETA'
+        })
 
     merged_associations_and_snps.to_csv(RESULTS_FILE_PATH, index=False)
 
