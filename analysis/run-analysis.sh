@@ -8,7 +8,7 @@ cd $scr_dir
 
 # START OF THE SCRIPT
 
-available_apis=('gwas-catalog' 'gwas-top-associations' 'iue-gwas' 'open-targets' 'off')
+available_apis=('gwas-catalog' 'gwas-top-associations' 'open-targets' 'off')
 selected_apis=(${available_apis[@]})
 
 ld_value=0.75
@@ -24,6 +24,8 @@ skip_ld=0
 analysis_start_time=
 last_run_time=
 
+PIDS=()
+
 usage() {
     _usage="\
 Usage: $scr_name [OPTION]... SNPS_FILE LD_MATRIXES_DIRECTORY
@@ -35,6 +37,7 @@ SNPS_FILE must have .csv extension
   --p-value <p_value>                 Percentage value between 0 to 1. If not precised: standard value of 0.05
   --api <API_NAME_1,API_NAME_2,...>   Specify one or more API names to connect to, separated by commas (default: all except 'off'). Possible API Names: 
                                         $(echo ${available_apis[@]} | sed 's/ /, /g')
+                                      Note: gwas-top-associations works only on p-value<1e-5, for higher p-value use gwas-catalog.
   --max-tries <max_tries>             Maximum number of times the program will try to run a command.
   -r, --resume                        Resumes a previously interrupted analysis using the same data and options as the
                                         prior run, instead of starting a new analysis.
@@ -177,6 +180,14 @@ set_max_tries() {
     max_tries=$1
 }
 
+kill_all_jobs() {
+    for pid in "${PIDS[@]}"; do
+        disown "$pid" #2> /dev/null
+        kill "$pid" #2> /dev/null
+    done
+    wait
+}
+
 run_command() {
     for try in $(seq $max_tries); do
         command="$@"
@@ -195,6 +206,8 @@ run_command() {
             error_message "command: '$command': maximum tries reached. Exiting program..."
             exit 1
         fi
+
+        echo "$scr_name: command: '$command' finished succesfully"
 
         return
     done
@@ -286,29 +299,37 @@ main() {
             break
             ;;
             gwas-catalog )
-            run_command "python3 find-associations-using-gwas-catalog.py $p_value"
-            cp "../data/associations-found-by-gwas-catalog.csv" "../results/"
+            run_command "python3 find-associations-using-gwas-catalog.py $p_value" && \
+            cp "../data/associations-found-by-gwas-catalog.csv" "../results/" &
+            PIDS+=($!)
             ;;
             gwas-top-associations )
-            run_command "python3 find-associations-using-gwas-top-associations.py $p_value"
-            cp "../data/associations-found-by-gwas-catalog-top-associations.csv" "../results/"
-            ;;
-            iue-gwas )
-            echo 'iue-gwas'
+            run_command "python3 find-associations-using-gwas-top-associations.py $p_value" && \
+            cp "../data/associations-found-by-gwas-top-associations.csv" "../results/" &
+            PIDS+=($!)
             ;;
             open-targets )
-            run_command "python3 find-associations-using-open-targets.py $p_value"
-            cp "../data/associations-found-by-open-targets.csv" "../results/"
+            run_command "python3 find-associations-using-open-targets.py $p_value" && \
+            cp "../data/associations-found-by-open-targets.csv" "../results/" &
+            PIDS+=($!)
             ;;
             * )
             error_message "unhandled api '$selected_api'"
             ;;
         esac
     done
+
+    trap 'kill_all_jobs; exit 1' SIGINT
+
+    for pid in "${PIDS[@]}"; do
+        wait "$pid" || {
+            kill_all_jobs
+            exit 1
+        }
+    done
     
     results_info
     rm "../data/state"
-
 }
 
 main "$@"
