@@ -5,14 +5,31 @@ import math
 P_VALUE = float(sys.argv[1])
 P_VALUE_MLOG = math.log10(P_VALUE) * -1
 SNP_TO_ANALISE = '../data/snps-found-via-ld-matrixes.csv'
-ASSOCIATIONS_FILE = '/slow/projects/ifpan-bartek-associations/gwas_catalog_v1.0.2-associations_e113_r2025-01-30.tsv'
 RESULTS_FILE_PATH = '../data/associations-found-by-gwas-top-associations.csv'
+CONFIG_FILE='../.config'
 
+def read_config_file():
+    config = {}
+
+    with open(CONFIG_FILE, 'r') as f:
+        for line in f:
+            line_formated = line.rstrip()
+
+            if line_formated == '':
+                continue
+
+            if line_formated[0] == '#':
+                continue
+
+            config[line_formated.split('=')[0]] = line_formated.split('=')[1]
+    return config
 
 def main():
     snps_to_analise = pandas.read_csv(SNP_TO_ANALISE)
 
-    associations_file = pandas.read_csv(ASSOCIATIONS_FILE, sep='\t', low_memory=False)
+    config = read_config_file()
+
+    associations_file = pandas.read_csv(config['gwas_catalog_association_file_path'], sep='\t', low_memory=False)
 
     associations_filtered = associations_file.loc[
                                     associations_file['PVALUE_MLOG'] >= P_VALUE_MLOG, 
