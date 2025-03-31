@@ -1,13 +1,3 @@
-# Files inside raw, data, results directories
-
-raw/*
-data/*
-results/*
-!raw/
-!data/
-!results/
-
-
 ########## R.gitignore ##########
 
 # History files

@@ -1,9 +1,4 @@
-/raw/*   
-/data/*
-/results/*
-
-
-########## R.gitignore ##########
+########## R.dockerignore ##########
 
 # History files
 .Rhistory
@@ -52,7 +47,7 @@ docs/
 po/*~
 
 
-########## Python.gitignore ##########
+########## Python.dockerignore ##########
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
