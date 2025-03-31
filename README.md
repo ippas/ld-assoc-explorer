@@ -1,5 +1,5 @@
 # ld-assec-explorer
-LD Associations Explorer
+Linkage Disequilibrium Associations Explorer
 
 This project searches for associations between a list of SNPs and phenotypes, taking into account nearby SNPs with high linkage disequilibrium (LD).
 
