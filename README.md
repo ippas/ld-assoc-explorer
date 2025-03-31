@@ -1,4 +1,5 @@
-# ifpan-paula-ukbbldmatrixes
+# ld-assec-explorer
+LD Associations Explorer
 
 This project searches for associations between a list of SNPs and phenotypes, taking into account nearby SNPs with high linkage disequilibrium (LD).
 
