@@ -1,6 +1,8 @@
-/raw
-/data
-/results
+# Files inside raw, data, results directories
+
+/raw/
+/data/
+/results/
 
 
 ########## R.gitignore ##########
