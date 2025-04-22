@@ -9,7 +9,7 @@ The program takes a list of SNPs (containing rsID, chromosome, and position in G
 3. [Open Targets Platform GraphQL API](https://api.platform.opentargets.org/)
 
 **Data Source**:  
-UK Biobank Linkage Disequilibrium Matrices were accessed from [https://registry.opendata.aws/ukbb-ld](https://registry.opendata.aws/ukbb-ld) on [DATE].
+UK Biobank Linkage Disequilibrium Matrices were accessed from [https://registry.opendata.aws/ukbb-ld](https://registry.opendata.aws/ukbb-ld) in december 2024.
 
 ## Pipeline
 
